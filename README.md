@@ -1,4 +1,4 @@
-# YTMNT (YouTube Music Ninja Tools) 🐢🍕
+# YTMNT (YouTube Music Ninja Tools)
 
 ### [⬇️ **INSTALL SCRIPT (v5.0)**](https://raw.githubusercontent.com/hanenashi/ytmnt/main/ytmnt.user.js)
 *(Requires Violentmonkey, Tampermonkey, or stay-mobile on Android)*
@@ -23,8 +23,7 @@ The ultimate "God Mode" for YouTube Music on Web and Mobile. It forces backgroun
     * **Search Proof:** UI survives page navigation and search wipes.
 
 ### **How to Use**
-1.  **Install** a userscript manager (Violentmonkey is recommended).
+1.  **Install** a userscript manager
 2.  **Click** the [Install Link](https://raw.githubusercontent.com/hanenashi/ytmnt/main/ytmnt.user.js) above.
 3.  **Open** [music.youtube.com](https://music.youtube.com).
 4.  **Cowabunga!** The badge will appear in the top-left (default). Click it to cycle modes, drag it to move it.
-5.  
