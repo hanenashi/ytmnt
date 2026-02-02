@@ -1,6 +1,6 @@
 <div align="center">
   <img src="https://raw.githubusercontent.com/hanenashi/ytmnt/main/ytmnt.ico" width="500" alt="YTMNT Logo">
-  <h1>YTMNT (YouTube Music Ninja Tools) 🐢🍕</h1>
+  <h1>YTMNT (YouTube Music Ninja Tools)</h1>
 </div>
 
 <div align="center">
@@ -34,4 +34,3 @@ The ultimate "God Mode" for YouTube Music on Web and Mobile. It forces backgroun
 2.  **Click** the [Install Link](https://raw.githubusercontent.com/hanenashi/ytmnt/main/ytmnt.user.js) above.
 3.  **Open** [music.youtube.com](https://music.youtube.com).
 4.  **Cowabunga!** The badge will appear in the top-left (default). Click it to cycle modes, drag it to move it.
-5.  
