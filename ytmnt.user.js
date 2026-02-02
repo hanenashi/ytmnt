@@ -1,8 +1,12 @@
 // ==UserScript==
-// @name         YTMNT (Cowabunga v4.0 - Icon Edition)
-// @namespace    ytmnt-daemon-v4
-// @version      4.0
-// @description  Stream Cycler, Ad Skip, Search-Proof UI, and Custom Icon Support.
+// @name         YTMNT (YouTube Music Ninja Tools)
+// @namespace    https://github.com/hanenashi/ytmnt
+// @version      5.0
+// @description  Cowabunga! Stream Cycler, Ad Skip, Search-Proof UI & Mobile Drag.
+// @author       Hanenashi & Gemini
+// @homepage     https://github.com/hanenashi/ytmnt
+// @updateURL    https://raw.githubusercontent.com/hanenashi/ytmnt/main/ytmnt.user.js
+// @downloadURL  https://raw.githubusercontent.com/hanenashi/ytmnt/main/ytmnt.user.js
 // @match        https://music.youtube.com/*
 // @run-at       document-start
 // @grant        none
@@ -15,18 +19,18 @@
     // 1. CONFIGURATION
     // ==========================================
     
-    // 🔴 PASTE YOUR BASE64 STRING HERE 🔴
-    // It should look like: "data:image/x-icon;base64,AAABAA..."
-    const CUSTOM_ICON = ""; 
+    // Pulls icon directly from your GitHub 'main' branch
+    const CUSTOM_ICON = "https://raw.githubusercontent.com/hanenashi/ytmnt/main/ytmnt.ico";
 
     const STATE = {
         mode: 0, // 0=Audio, 1=Low, 2=HD
         lastInteraction: Date.now(),
         lastToggle: 0,
         isDragging: false,
-        badgeId: 'ytmnt-badge-v4',
-        toastId: 'ytmnt-toast-v4',
-        pos: JSON.parse(localStorage.getItem('ytmnt-pos-v4')) || { x: 20, y: 120 }
+        badgeId: 'ytmnt-badge-v5',
+        toastId: 'ytmnt-toast-v5',
+        // Load saved position or default to Top-Left area
+        pos: JSON.parse(localStorage.getItem('ytmnt-pos-v5')) || { x: 20, y: 120 }
     };
 
     // ==========================================
@@ -35,9 +39,9 @@
     const Logic = {
         applyMode: () => {
             // Re-inject Nuke CSS
-            if (!document.getElementById('ytmnt-style-v4')) {
+            if (!document.getElementById('ytmnt-style-v5')) {
                 const style = document.createElement('style');
-                style.id = 'ytmnt-style-v4';
+                style.id = 'ytmnt-style-v5';
                 style.textContent = `
                     html.daemon-audio-mode #movie_player video,
                     html.daemon-audio-mode .html5-video-container {
@@ -120,7 +124,7 @@
         init: () => {
             UI.ensureToast();
             UI.renderBadge();
-            // Start the aggressive persistence loop
+            // Aggressive persistence loop (60fps check)
             requestAnimationFrame(UI.persistenceLoop);
         },
 
@@ -147,7 +151,7 @@
             badge.style.cssText = `
                 position: fixed; z-index: 2147483647;
                 display: flex; align-items: center; gap: 8px;
-                padding: 8px 12px; border-radius: 30px;
+                padding: 6px 10px; border-radius: 30px;
                 background: rgba(10, 10, 10, 0.95);
                 border: 1px solid rgba(255, 255, 255, 0.2);
                 backdrop-filter: blur(12px);
@@ -159,20 +163,13 @@
                 cursor: pointer;
             `;
 
-            // --- ICON OR DOT ---
-            const icon = document.createElement(CUSTOM_ICON ? 'img' : 'div');
-            if (CUSTOM_ICON) {
-                icon.src = CUSTOM_ICON;
-                icon.style.cssText = `
-                    width: 24px; height: 24px; border-radius: 50%;
-                    object-fit: cover; transition: box-shadow 0.3s;
-                `;
-            } else {
-                icon.style.cssText = `
-                    width: 14px; height: 14px; border-radius: 50%;
-                    background: #666; transition: background 0.3s;
-                `;
-            }
+            // --- ICON ---
+            const icon = document.createElement('img');
+            icon.src = CUSTOM_ICON;
+            icon.style.cssText = `
+                width: 20px; height: 20px; border-radius: 50%;
+                object-fit: contain; transition: filter 0.3s;
+            `;
 
             // --- TEXT LABEL ---
             const text = document.createElement('div');
@@ -230,7 +227,7 @@
                     badge.style.background = 'rgba(10, 10, 10, 0.95)';
 
                     if (hasMoved) {
-                        localStorage.setItem('ytmnt-pos-v4', JSON.stringify(STATE.pos));
+                        localStorage.setItem('ytmnt-pos-v5', JSON.stringify(STATE.pos));
                     } else {
                         // Click Toggle
                         const now = Date.now();
@@ -261,18 +258,10 @@
             const badge = document.getElementById(STATE.badgeId);
             if (!badge) return;
 
-            // Apply visual state
-            if (CUSTOM_ICON) {
-                // Glow effect for Custom Icon
-                if (mode === 0) badge.iconRef.style.boxShadow = '0 0 10px #0f0'; // Green Glow
-                else if (mode === 1) badge.iconRef.style.boxShadow = '0 0 10px #ffd700'; // Yellow Glow
-                else badge.iconRef.style.boxShadow = '0 0 10px #ff4444'; // Red Glow
-            } else {
-                // Dot color
-                if (mode === 0) badge.iconRef.style.background = '#0f0';
-                else if (mode === 1) badge.iconRef.style.background = '#ffd700';
-                else badge.iconRef.style.background = '#ff4444';
-            }
+            // Visual State (Glow on Icon)
+            if (mode === 0) badge.iconRef.style.filter = 'drop-shadow(0 0 4px #0f0)'; // Green
+            else if (mode === 1) badge.iconRef.style.filter = 'drop-shadow(0 0 4px #ffd700)'; // Yellow
+            else badge.iconRef.style.filter = 'drop-shadow(0 0 4px #ff4444)'; // Red
 
             // Text Update
             if (mode === 0) badge.textRef.textContent = 'AUDIO';
@@ -280,21 +269,18 @@
             else badge.textRef.textContent = 'HD VIDEO';
         },
 
-        // --- THE "PERSISTENCE LOOP" ---
+        // --- PERSISTENCE LOOP ---
         persistenceLoop: () => {
-            // 1. Recreate badge if missing
+            // 1. Recreate if missing
             if (!document.getElementById(STATE.badgeId)) {
                 UI.renderBadge();
             } else {
-                // 2. Force it to be the last element of HTML (Z-Index King)
-                // Only do this if we aren't currently dragging it
+                // 2. Force Top (unless dragging)
                 const badge = document.getElementById(STATE.badgeId);
                 if (!STATE.isDragging && document.documentElement.lastElementChild !== badge) {
                     document.documentElement.appendChild(badge);
                 }
             }
-            
-            // 3. Keep running every frame
             requestAnimationFrame(UI.persistenceLoop);
         }
     };
@@ -322,7 +308,6 @@
         return Logic.handlePause.call(this, origPause, arguments);
     };
 
-    // Maintenance Loop (Ads/Idle)
     setInterval(() => {
         // Enforce Quality
         if (STATE.mode === 0) Logic.forceQuality('tiny');
@@ -330,7 +315,7 @@
         if (STATE.mode === 2) Logic.forceQuality('highres');
 
         const skip = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern');
-        if (skip) { skip.click(); UI.ensureToast(); } // Skip & maybe toast?
+        if (skip) { skip.click(); UI.ensureToast(); }
         const idle = document.querySelector('ytmusic-you-there-renderer button');
         if (idle) { idle.click(); UI.ensureToast(); }
     }, 2000);
@@ -338,5 +323,5 @@
     if (document.documentElement) UI.init();
     else window.addEventListener('DOMContentLoaded', UI.init);
 
-    console.log('[YTMNT] v4.0 Icon Edition Loaded');
+    console.log('[YTMNT] v5.0 GitHub Edition Loaded');
 })();
