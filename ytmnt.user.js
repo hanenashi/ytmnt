@@ -308,16 +308,41 @@
         return Logic.handlePause.call(this, origPause, arguments);
     };
 
-    setInterval(() => {
+setInterval(() => {
         // Enforce Quality
         if (STATE.mode === 0) Logic.forceQuality('tiny');
         if (STATE.mode === 1) Logic.forceQuality('large');
         if (STATE.mode === 2) Logic.forceQuality('highres');
 
+        // Ad Skip
         const skip = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern');
-        if (skip) { skip.click(); UI.ensureToast(); }
+        if (skip) { 
+            skip.click(); 
+            UI.ensureToast(); 
+        }
+
+        // Idle Skip ("Continue watching?")
         const idle = document.querySelector('ytmusic-you-there-renderer button');
-        if (idle) { idle.click(); UI.ensureToast(); }
+        if (idle) { 
+            idle.click(); 
+            UI.ensureToast(); 
+            
+            // --- THE WAKE-UP HAMMER ---
+            // Force playback to resume immediately in the background
+            setTimeout(() => {
+                // 1. Try hitting the internal YouTube API
+                const player = document.getElementById('movie_player');
+                if (player && typeof player.playVideo === 'function') {
+                    player.playVideo();
+                }
+                
+                // 2. Try hitting the raw HTML5 video element directly
+                const vid = document.querySelector('video');
+                if (vid && vid.paused) {
+                    vid.play().catch(err => console.warn('[YTMNT] Background play rejected:', err));
+                }
+            }, 100); // 100ms delay gives the popup time to close first
+        }
     }, 2000);
 
     if (document.documentElement) UI.init();
