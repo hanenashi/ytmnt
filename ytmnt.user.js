@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YTMNT (YouTube Music Ninja Tools)
 // @namespace    https://github.com/hanenashi/ytmnt
-// @version      5.0
+// @version      5.1
 // @description  Cowabunga! Stream Cycler, Ad Skip, Search-Proof UI & Mobile Drag.
 // @author       Hanenashi & Gemini
 // @homepage     https://github.com/hanenashi/ytmnt
