@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         YTMNT (YouTube Music Ninja Tools)
 // @namespace    https://github.com/hanenashi/ytmnt
-// @version      5.6
-// @description  Cowabunga! Stream Cycler, Ad Skip, Mobile Drag, Audio Clicks & Easter Eggs.
+// @version      5.7
+// @description  Cowabunga! Stream Cycler, Ad Skip, Mobile Drag, Audio Clicks & Screen Bounds.
 // @author       Hanenashi & Gemini
 // @homepage     https://github.com/hanenashi/ytmnt
 // @updateURL    https://raw.githubusercontent.com/hanenashi/ytmnt/main/ytmnt.user.js
@@ -25,7 +25,7 @@
     clickAudio.volume = 0.5;
 
     const cowabungaAudio = new Audio(EASTER_EGG_SOUND);
-    cowabungaAudio.volume = 0.7; // A bit louder for maximum party dude energy
+    cowabungaAudio.volume = 0.7; 
 
     const STATE = {
         mode: 0, // 0=Audio, 1=Low, 2=HD
@@ -197,7 +197,6 @@
             badge.appendChild(dot);
             badge.appendChild(text);
 
-            // Prevent native right-click menu over the badge
             badge.addEventListener('contextmenu', e => e.preventDefault());
 
             let longPressTimer;
@@ -206,14 +205,12 @@
             const handleStart = (e) => {
                 fixAudioContext();
                 
-                // --- DESKTOP RIGHT CLICK ---
                 if (e.pointerType === 'mouse' && e.button === 2) {
                     e.preventDefault();
                     cowabungaAudio.currentTime = 0;
                     cowabungaAudio.play().catch(()=>{});
                     UI.showToast('🐢🍕 COWABUNGA!');
                     
-                    // Visual pop
                     badge.style.transform = `translate(${STATE.pos.x}px, ${STATE.pos.y}px) scale(1.1)`;
                     setTimeout(() => badge.style.transform = `translate(${STATE.pos.x}px, ${STATE.pos.y}px) scale(1.0)`, 150);
                     return;
@@ -233,21 +230,19 @@
                 
                 let hasMoved = false;
 
-                // --- MOBILE LONG PRESS ---
                 longPressTimer = setTimeout(() => {
                     isLongPress = true;
                     cowabungaAudio.currentTime = 0;
                     cowabungaAudio.play().catch(()=>{});
                     UI.showToast('🐢🍕 COWABUNGA!');
                     
-                    // Visual pulse to show it triggered
                     badge.style.transform = `translate(${STATE.pos.x}px, ${STATE.pos.y}px) scale(1.1)`;
                     setTimeout(() => {
                         if (STATE.isDragging) {
                             badge.style.transform = `translate(${STATE.pos.x}px, ${STATE.pos.y}px) scale(0.92)`;
                         }
                     }, 150);
-                }, 600); // Trigger after 600ms
+                }, 600); 
 
                 const handleMove = (moveEvent) => {
                     if (moveEvent.cancelable) moveEvent.preventDefault();
@@ -256,9 +251,20 @@
 
                     if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
                         hasMoved = true;
-                        clearTimeout(longPressTimer); // Cancel easter egg if dragging
-                        STATE.pos.x = initialPos.x + dx;
-                        STATE.pos.y = initialPos.y + dy;
+                        clearTimeout(longPressTimer); 
+                        
+                        // --- THE BUMPER CAR LOGIC ---
+                        let nextX = initialPos.x + dx;
+                        let nextY = initialPos.y + dy;
+                        
+                        const rect = badge.getBoundingClientRect();
+                        const maxX = window.innerWidth - rect.width;
+                        const maxY = window.innerHeight - rect.height;
+
+                        // Clamp to screen edges (5px safety margin)
+                        STATE.pos.x = Math.max(5, Math.min(nextX, maxX - 5));
+                        STATE.pos.y = Math.max(5, Math.min(nextY, maxY - 5));
+
                         badge.style.transform = `translate(${STATE.pos.x}px, ${STATE.pos.y}px) scale(0.92)`;
                     }
                 };
@@ -276,7 +282,6 @@
                     if (hasMoved) {
                         localStorage.setItem('ytmnt-pos-v5', JSON.stringify(STATE.pos));
                     } else if (!isLongPress) {
-                        // Standard click toggle (only fires if they didn't trigger the easter egg)
                         const now = Date.now();
                         if (now - STATE.lastToggle > 300) {
                             STATE.lastToggle = now;
@@ -394,8 +399,28 @@
         }
     }, 2000);
 
+    // --- AUTO-RECOVERY ON RESIZE / ROTATION ---
+    window.addEventListener('resize', () => {
+        const badge = document.getElementById(STATE.badgeId);
+        if (badge && !STATE.isDragging) {
+            const rect = badge.getBoundingClientRect();
+            const maxX = window.innerWidth - rect.width;
+            const maxY = window.innerHeight - rect.height;
+            
+            let clampedX = Math.max(5, Math.min(STATE.pos.x, maxX - 5));
+            let clampedY = Math.max(5, Math.min(STATE.pos.y, maxY - 5));
+            
+            if (clampedX !== STATE.pos.x || clampedY !== STATE.pos.y) {
+                STATE.pos.x = clampedX;
+                STATE.pos.y = clampedY;
+                badge.style.transform = `translate(${STATE.pos.x}px, ${STATE.pos.y}px) scale(1.0)`;
+                localStorage.setItem('ytmnt-pos-v5', JSON.stringify(STATE.pos));
+            }
+        }
+    }, { passive: true });
+
     if (document.documentElement) UI.init();
     else window.addEventListener('DOMContentLoaded', UI.init);
 
-    console.log('[YTMNT] v5.6 Cowabunga Update Loaded');
+    console.log('[YTMNT] v5.7 Screen Bounds Update Loaded');
 })();
