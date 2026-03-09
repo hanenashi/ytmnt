@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YTMNT (YouTube Music Ninja Tools)
 // @namespace    https://github.com/hanenashi/ytmnt
-// @version      5.2
+// @version      5.3
 // @description  Cowabunga! Stream Cycler, Ad Skip, Search-Proof UI & Mobile Drag.
 // @author       Hanenashi & Gemini
 // @homepage     https://github.com/hanenashi/ytmnt
@@ -137,7 +137,6 @@
             document.documentElement.appendChild(toast);
         },
 
-        // --- RESTORED SHOW TOAST FUNCTION ---
         showToast: (msg) => {
             const toast = document.getElementById(STATE.toastId);
             if (!toast) return;
@@ -191,7 +190,6 @@
             badge.appendChild(text);
 
             const handleStart = (e) => {
-                fixAudioContext();
                 if (e.type === 'mousedown' && e.button !== 0) return;
                 if (e.cancelable) e.preventDefault();
 
@@ -226,6 +224,7 @@
                 const handleEnd = () => {
                     window.removeEventListener(isTouch ? 'touchmove' : 'mousemove', handleMove);
                     window.removeEventListener(isTouch ? 'touchend' : 'mouseup', handleEnd);
+                    window.removeEventListener('touchcancel', handleEnd); // <--- THE BUG FIX
                     
                     STATE.isDragging = false;
                     badge.style.transform = `translate(${STATE.pos.x}px, ${STATE.pos.y}px) scale(1.0)`;
@@ -246,6 +245,7 @@
                 };
                 window.addEventListener(isTouch ? 'touchmove' : 'mousemove', handleMove, { passive: false });
                 window.addEventListener(isTouch ? 'touchend' : 'mouseup', handleEnd, { passive: false });
+                if (isTouch) window.addEventListener('touchcancel', handleEnd, { passive: false });
             };
 
             badge.addEventListener('mousedown', handleStart);
@@ -287,9 +287,14 @@
     // ==========================================
     // 5. LISTENERS & BOOTSTRAP
     // ==========================================
-    const recordInteraction = () => { STATE.lastInteraction = Date.now(); fixAudioContext(); };
+    const recordInteraction = () => { STATE.lastInteraction = Date.now(); };
     ['touchstart', 'touchmove', 'mousedown', 'keydown', 'scroll'].forEach(evt => {
         window.addEventListener(evt, recordInteraction, { capture: true, passive: true });
+    });
+
+    // Only wake AudioContext on explicit click/tap gestures, not scrolling
+    ['touchstart', 'mousedown', 'keydown'].forEach(evt => {
+        window.addEventListener(evt, () => { if (!audioFixed) fixAudioContext(); }, { capture: true, passive: true });
     });
 
     if ('mediaSession' in navigator) {
@@ -339,5 +344,5 @@
     if (document.documentElement) UI.init();
     else window.addEventListener('DOMContentLoaded', UI.init);
 
-    console.log('[YTMNT] v5.1 Firefox Patch Loaded');
+    console.log('[YTMNT] v5.2 Mobile Freeze Patch Loaded');
 })();
