@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YTMNT (YouTube Music Ninja Tools)
 // @namespace    https://github.com/hanenashi/ytmnt
-// @version      5.1
+// @version      5.2
 // @description  Cowabunga! Stream Cycler, Ad Skip, Search-Proof UI & Mobile Drag.
 // @author       Hanenashi & Gemini
 // @homepage     https://github.com/hanenashi/ytmnt
@@ -18,8 +18,6 @@
     // ==========================================
     // 1. CONFIGURATION
     // ==========================================
-    
-    // Pulls icon directly from your GitHub 'main' branch
     const CUSTOM_ICON = "https://raw.githubusercontent.com/hanenashi/ytmnt/main/ytmnt.ico";
 
     const STATE = {
@@ -29,7 +27,6 @@
         isDragging: false,
         badgeId: 'ytmnt-badge-v5',
         toastId: 'ytmnt-toast-v5',
-        // Load saved position or default to Top-Left area
         pos: JSON.parse(localStorage.getItem('ytmnt-pos-v5')) || { x: 20, y: 120 }
     };
 
@@ -38,7 +35,6 @@
     // ==========================================
     const Logic = {
         applyMode: () => {
-            // Re-inject Nuke CSS
             if (!document.getElementById('ytmnt-style-v5')) {
                 const style = document.createElement('style');
                 style.id = 'ytmnt-style-v5';
@@ -58,17 +54,17 @@
             }
 
             switch (STATE.mode) {
-                case 0: // AUDIO
+                case 0:
                     document.documentElement.classList.add('daemon-audio-mode');
                     Logic.forceQuality('tiny');
                     UI.updateBadge(0);
                     break;
-                case 1: // LOW
+                case 1:
                     document.documentElement.classList.remove('daemon-audio-mode');
                     Logic.forceQuality('large');
                     UI.updateBadge(1);
                     break;
-                case 2: // HD
+                case 2:
                     document.documentElement.classList.remove('daemon-audio-mode');
                     Logic.forceQuality('highres');
                     UI.updateBadge(2);
@@ -124,7 +120,6 @@
         init: () => {
             UI.ensureToast();
             UI.renderBadge();
-            // Aggressive persistence loop (60fps check)
             requestAnimationFrame(UI.persistenceLoop);
         },
 
@@ -140,6 +135,20 @@
                 z-index: 2147483647; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             `;
             document.documentElement.appendChild(toast);
+        },
+
+        // --- RESTORED SHOW TOAST FUNCTION ---
+        showToast: (msg) => {
+            const toast = document.getElementById(STATE.toastId);
+            if (!toast) return;
+            toast.textContent = msg;
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateY(0)';
+            if (UI.timeout) clearTimeout(UI.timeout);
+            UI.timeout = setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(-20px)';
+            }, 2000);
         },
 
         renderBadge: () => {
@@ -163,7 +172,6 @@
                 cursor: pointer;
             `;
 
-            // --- ICON ---
             const icon = document.createElement('img');
             icon.src = CUSTOM_ICON;
             icon.style.cssText = `
@@ -171,7 +179,6 @@
                 object-fit: contain; transition: filter 0.3s;
             `;
 
-            // --- TEXT LABEL ---
             const text = document.createElement('div');
             text.textContent = 'INIT';
             text.style.cssText = `
@@ -183,7 +190,6 @@
             badge.appendChild(icon);
             badge.appendChild(text);
 
-            // --- DRAG & TOUCH LOGIC ---
             const handleStart = (e) => {
                 fixAudioContext();
                 if (e.type === 'mousedown' && e.button !== 0) return;
@@ -197,7 +203,6 @@
                 const startY = clientY;
                 const initialPos = { ...STATE.pos };
 
-                // Press visual
                 badge.style.transform = `translate(${initialPos.x}px, ${initialPos.y}px) scale(0.95)`;
                 badge.style.background = 'rgba(40, 40, 40, 1)';
                 
@@ -229,7 +234,6 @@
                     if (hasMoved) {
                         localStorage.setItem('ytmnt-pos-v5', JSON.stringify(STATE.pos));
                     } else {
-                        // Click Toggle
                         const now = Date.now();
                         if (now - STATE.lastToggle > 300) {
                             STATE.lastToggle = now;
@@ -258,24 +262,19 @@
             const badge = document.getElementById(STATE.badgeId);
             if (!badge) return;
 
-            // Visual State (Glow on Icon)
-            if (mode === 0) badge.iconRef.style.filter = 'drop-shadow(0 0 4px #0f0)'; // Green
-            else if (mode === 1) badge.iconRef.style.filter = 'drop-shadow(0 0 4px #ffd700)'; // Yellow
-            else badge.iconRef.style.filter = 'drop-shadow(0 0 4px #ff4444)'; // Red
+            if (mode === 0) badge.iconRef.style.filter = 'drop-shadow(0 0 4px #0f0)';
+            else if (mode === 1) badge.iconRef.style.filter = 'drop-shadow(0 0 4px #ffd700)';
+            else badge.iconRef.style.filter = 'drop-shadow(0 0 4px #ff4444)';
 
-            // Text Update
             if (mode === 0) badge.textRef.textContent = 'AUDIO';
             else if (mode === 1) badge.textRef.textContent = 'LOW RES';
             else badge.textRef.textContent = 'HD VIDEO';
         },
 
-        // --- PERSISTENCE LOOP ---
         persistenceLoop: () => {
-            // 1. Recreate if missing
             if (!document.getElementById(STATE.badgeId)) {
                 UI.renderBadge();
             } else {
-                // 2. Force Top (unless dragging)
                 const badge = document.getElementById(STATE.badgeId);
                 if (!STATE.isDragging && document.documentElement.lastElementChild !== badge) {
                     document.documentElement.appendChild(badge);
@@ -308,45 +307,37 @@
         return Logic.handlePause.call(this, origPause, arguments);
     };
 
-setInterval(() => {
-        // Enforce Quality
+    setInterval(() => {
         if (STATE.mode === 0) Logic.forceQuality('tiny');
         if (STATE.mode === 1) Logic.forceQuality('large');
         if (STATE.mode === 2) Logic.forceQuality('highres');
 
-        // Ad Skip
         const skip = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern');
         if (skip) { 
             skip.click(); 
-            UI.ensureToast(); 
+            UI.showToast('⏩ Ad Skipped'); 
         }
 
-        // Idle Skip ("Continue watching?")
         const idle = document.querySelector('ytmusic-you-there-renderer button');
         if (idle) { 
             idle.click(); 
-            UI.ensureToast(); 
+            UI.showToast('👋 Idle Skipped'); 
             
-            // --- THE WAKE-UP HAMMER ---
-            // Force playback to resume immediately in the background
             setTimeout(() => {
-                // 1. Try hitting the internal YouTube API
                 const player = document.getElementById('movie_player');
                 if (player && typeof player.playVideo === 'function') {
                     player.playVideo();
                 }
-                
-                // 2. Try hitting the raw HTML5 video element directly
                 const vid = document.querySelector('video');
                 if (vid && vid.paused) {
                     vid.play().catch(err => console.warn('[YTMNT] Background play rejected:', err));
                 }
-            }, 100); // 100ms delay gives the popup time to close first
+            }, 100);
         }
     }, 2000);
 
     if (document.documentElement) UI.init();
     else window.addEventListener('DOMContentLoaded', UI.init);
 
-    console.log('[YTMNT] v5.0 GitHub Edition Loaded');
+    console.log('[YTMNT] v5.1 Firefox Patch Loaded');
 })();
