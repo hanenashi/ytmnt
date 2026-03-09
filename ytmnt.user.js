@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         YTMNT (YouTube Music Ninja Tools)
 // @namespace    https://github.com/hanenashi/ytmnt
-// @version      5.4
-// @description  Cowabunga! Stream Cycler, Ad Skip, Mobile Drag, Audio Clicks & Animations.
+// @version      5.6
+// @description  Cowabunga! Stream Cycler, Ad Skip, Mobile Drag, Audio Clicks & Easter Eggs.
 // @author       Hanenashi & Gemini
 // @homepage     https://github.com/hanenashi/ytmnt
 // @updateURL    https://raw.githubusercontent.com/hanenashi/ytmnt/main/ytmnt.user.js
@@ -18,12 +18,14 @@
     // ==========================================
     // 1. CONFIGURATION
     // ==========================================
-    const CUSTOM_ICON = "https://raw.githubusercontent.com/hanenashi/ytmnt/main/ytmnt.ico";
     const CUSTOM_CLICK_SOUND = "https://raw.githubusercontent.com/hanenashi/ytmnt/main/click.wav";
+    const EASTER_EGG_SOUND = "https://raw.githubusercontent.com/hanenashi/ytmnt/main/cowabunga.mp3";
 
-    // Pre-load the sound effect
     const clickAudio = new Audio(CUSTOM_CLICK_SOUND);
-    clickAudio.volume = 0.5; // 50% volume so it's not ear-piercing
+    clickAudio.volume = 0.5;
+
+    const cowabungaAudio = new Audio(EASTER_EGG_SOUND);
+    cowabungaAudio.volume = 0.7; // A bit louder for maximum party dude energy
 
     const STATE = {
         mode: 0, // 0=Audio, 1=Low, 2=HD
@@ -161,11 +163,10 @@
             const badge = document.createElement('div');
             badge.id = STATE.badgeId;
             
-            // Added -webkit-tap-highlight-color and improved transition
             badge.style.cssText = `
                 position: fixed; z-index: 2147483647;
                 display: flex; align-items: center; gap: 8px;
-                padding: 6px 10px; border-radius: 30px;
+                padding: 6px 12px; border-radius: 30px;
                 background: rgba(10, 10, 10, 0.95);
                 border: 1px solid rgba(255, 255, 255, 0.2);
                 backdrop-filter: blur(12px);
@@ -179,11 +180,10 @@
                 outline: none;
             `;
 
-            const icon = document.createElement('img');
-            icon.src = CUSTOM_ICON;
-            icon.style.cssText = `
-                width: 20px; height: 20px; border-radius: 50%;
-                object-fit: contain; transition: filter 0.3s;
+            const dot = document.createElement('div');
+            dot.style.cssText = `
+                width: 12px; height: 12px; border-radius: 50%;
+                background: #666; transition: background 0.3s, box-shadow 0.3s;
             `;
 
             const text = document.createElement('div');
@@ -194,24 +194,60 @@
                 margin-left: 2px;
             `;
 
-            badge.appendChild(icon);
+            badge.appendChild(dot);
             badge.appendChild(text);
+
+            // Prevent native right-click menu over the badge
+            badge.addEventListener('contextmenu', e => e.preventDefault());
+
+            let longPressTimer;
+            let isLongPress = false;
 
             const handleStart = (e) => {
                 fixAudioContext();
+                
+                // --- DESKTOP RIGHT CLICK ---
+                if (e.pointerType === 'mouse' && e.button === 2) {
+                    e.preventDefault();
+                    cowabungaAudio.currentTime = 0;
+                    cowabungaAudio.play().catch(()=>{});
+                    UI.showToast('🐢🍕 COWABUNGA!');
+                    
+                    // Visual pop
+                    badge.style.transform = `translate(${STATE.pos.x}px, ${STATE.pos.y}px) scale(1.1)`;
+                    setTimeout(() => badge.style.transform = `translate(${STATE.pos.x}px, ${STATE.pos.y}px) scale(1.0)`, 150);
+                    return;
+                }
+
                 if (e.pointerType === 'mouse' && e.button !== 0) return;
                 if (e.cancelable) e.preventDefault();
 
                 STATE.isDragging = true;
+                isLongPress = false;
                 const startX = e.clientX;
                 const startY = e.clientY;
                 const initialPos = { ...STATE.pos };
 
-                // Press visual (Scale down)
                 badge.style.transform = `translate(${initialPos.x}px, ${initialPos.y}px) scale(0.92)`;
                 badge.style.background = 'rgba(40, 40, 40, 1)';
                 
                 let hasMoved = false;
+
+                // --- MOBILE LONG PRESS ---
+                longPressTimer = setTimeout(() => {
+                    isLongPress = true;
+                    cowabungaAudio.currentTime = 0;
+                    cowabungaAudio.play().catch(()=>{});
+                    UI.showToast('🐢🍕 COWABUNGA!');
+                    
+                    // Visual pulse to show it triggered
+                    badge.style.transform = `translate(${STATE.pos.x}px, ${STATE.pos.y}px) scale(1.1)`;
+                    setTimeout(() => {
+                        if (STATE.isDragging) {
+                            badge.style.transform = `translate(${STATE.pos.x}px, ${STATE.pos.y}px) scale(0.92)`;
+                        }
+                    }, 150);
+                }, 600); // Trigger after 600ms
 
                 const handleMove = (moveEvent) => {
                     if (moveEvent.cancelable) moveEvent.preventDefault();
@@ -220,32 +256,32 @@
 
                     if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
                         hasMoved = true;
+                        clearTimeout(longPressTimer); // Cancel easter egg if dragging
                         STATE.pos.x = initialPos.x + dx;
                         STATE.pos.y = initialPos.y + dy;
-                        // Keep the scale down while dragging
                         badge.style.transform = `translate(${STATE.pos.x}px, ${STATE.pos.y}px) scale(0.92)`;
                     }
                 };
 
                 const handleEnd = () => {
+                    clearTimeout(longPressTimer);
                     window.removeEventListener('pointermove', handleMove);
                     window.removeEventListener('pointerup', handleEnd);
                     window.removeEventListener('pointercancel', handleEnd);
                     
                     STATE.isDragging = false;
-                    // Release visual (Spring back up to scale 1.0)
                     badge.style.transform = `translate(${STATE.pos.x}px, ${STATE.pos.y}px) scale(1.0)`;
                     badge.style.background = 'rgba(10, 10, 10, 0.95)';
 
                     if (hasMoved) {
                         localStorage.setItem('ytmnt-pos-v5', JSON.stringify(STATE.pos));
-                    } else {
+                    } else if (!isLongPress) {
+                        // Standard click toggle (only fires if they didn't trigger the easter egg)
                         const now = Date.now();
                         if (now - STATE.lastToggle > 300) {
                             STATE.lastToggle = now;
                             
-                            // Play the click sound
-                            clickAudio.currentTime = 0; // Reset in case of rapid clicks
+                            clickAudio.currentTime = 0; 
                             clickAudio.play().catch(()=>{});
 
                             STATE.mode = (STATE.mode + 1) % 3;
@@ -263,7 +299,7 @@
 
             badge.addEventListener('pointerdown', handleStart);
 
-            badge.iconRef = icon;
+            badge.dotRef = dot;
             badge.textRef = text;
 
             document.documentElement.appendChild(badge);
@@ -274,13 +310,19 @@
             const badge = document.getElementById(STATE.badgeId);
             if (!badge) return;
 
-            if (mode === 0) badge.iconRef.style.filter = 'drop-shadow(0 0 4px #0f0)';
-            else if (mode === 1) badge.iconRef.style.filter = 'drop-shadow(0 0 4px #ffd700)';
-            else badge.iconRef.style.filter = 'drop-shadow(0 0 4px #ff4444)';
-
-            if (mode === 0) badge.textRef.textContent = 'AUDIO';
-            else if (mode === 1) badge.textRef.textContent = 'LOW RES';
-            else badge.textRef.textContent = 'HD VIDEO';
+            if (mode === 0) {
+                badge.dotRef.style.background = '#0f0';
+                badge.dotRef.style.boxShadow = '0 0 8px #0f0';
+                badge.textRef.textContent = 'AUDIO';
+            } else if (mode === 1) {
+                badge.dotRef.style.background = '#ffd700';
+                badge.dotRef.style.boxShadow = 'none';
+                badge.textRef.textContent = 'LOW RES';
+            } else {
+                badge.dotRef.style.background = '#ff4444';
+                badge.dotRef.style.boxShadow = '0 0 8px #ff4444';
+                badge.textRef.textContent = 'HD VIDEO';
+            }
         },
 
         persistenceLoop: () => {
@@ -355,5 +397,5 @@
     if (document.documentElement) UI.init();
     else window.addEventListener('DOMContentLoaded', UI.init);
 
-    console.log('[YTMNT] v5.4 Audio & Animation Patch Loaded');
+    console.log('[YTMNT] v5.6 Cowabunga Update Loaded');
 })();
