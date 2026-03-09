@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         YTMNT (YouTube Music Ninja Tools)
 // @namespace    https://github.com/hanenashi/ytmnt
-// @version      5.7
-// @description  Cowabunga! Stream Cycler, Ad Skip, Mobile Drag, Audio Clicks & Screen Bounds.
+// @version      5.8
+// @description  Cowabunga! Stream Cycler, Ad Skip, Mobile Drag, Audio Clicks & True Screen Bounds.
 // @author       Hanenashi & Gemini
 // @homepage     https://github.com/hanenashi/ytmnt
 // @updateURL    https://raw.githubusercontent.com/hanenashi/ytmnt/main/ytmnt.user.js
@@ -163,8 +163,9 @@
             const badge = document.createElement('div');
             badge.id = STATE.badgeId;
             
+            // --- FIXED: ADDED TOP: 0; LEFT: 0; ---
             badge.style.cssText = `
-                position: fixed; z-index: 2147483647;
+                position: fixed; top: 0; left: 0; z-index: 2147483647;
                 display: flex; align-items: center; gap: 8px;
                 padding: 6px 12px; border-radius: 30px;
                 background: rgba(10, 10, 10, 0.95);
@@ -253,7 +254,6 @@
                         hasMoved = true;
                         clearTimeout(longPressTimer); 
                         
-                        // --- THE BUMPER CAR LOGIC ---
                         let nextX = initialPos.x + dx;
                         let nextY = initialPos.y + dy;
                         
@@ -261,7 +261,6 @@
                         const maxX = window.innerWidth - rect.width;
                         const maxY = window.innerHeight - rect.height;
 
-                        // Clamp to screen edges (5px safety margin)
                         STATE.pos.x = Math.max(5, Math.min(nextX, maxX - 5));
                         STATE.pos.y = Math.max(5, Math.min(nextY, maxY - 5));
 
@@ -422,5 +421,5 @@
     if (document.documentElement) UI.init();
     else window.addEventListener('DOMContentLoaded', UI.init);
 
-    console.log('[YTMNT] v5.7 Screen Bounds Update Loaded');
+    console.log('[YTMNT] v5.8 True Screen Bounds Loaded');
 })();
