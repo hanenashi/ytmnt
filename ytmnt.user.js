@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         YTMNT (YouTube Music Ninja Tools)
 // @namespace    https://github.com/hanenashi/ytmnt
-// @version      5.3.1
-// @description  Cowabunga! Stream Cycler, Ad Skip, Search-Proof UI & Universal Pointer Drag.
+// @version      5.4
+// @description  Cowabunga! Stream Cycler, Ad Skip, Mobile Drag, Audio Clicks & Animations.
 // @author       Hanenashi & Gemini
 // @homepage     https://github.com/hanenashi/ytmnt
 // @updateURL    https://raw.githubusercontent.com/hanenashi/ytmnt/main/ytmnt.user.js
@@ -19,6 +19,11 @@
     // 1. CONFIGURATION
     // ==========================================
     const CUSTOM_ICON = "https://raw.githubusercontent.com/hanenashi/ytmnt/main/ytmnt.ico";
+    const CUSTOM_CLICK_SOUND = "https://raw.githubusercontent.com/hanenashi/ytmnt/main/click.wav";
+
+    // Pre-load the sound effect
+    const clickAudio = new Audio(CUSTOM_CLICK_SOUND);
+    clickAudio.volume = 0.5; // 50% volume so it's not ear-piercing
 
     const STATE = {
         mode: 0, // 0=Audio, 1=Low, 2=HD
@@ -131,7 +136,7 @@
                 position: fixed; top: 20px; right: 20px;
                 background: #fff; color: #000; padding: 10px 20px;
                 border-radius: 8px; font-family: sans-serif; font-weight: bold; font-size: 14px;
-                opacity: 0; transform: translateY(-20px); transition: all 0.3s ease;
+                opacity: 0; transform: translateY(-20px); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 z-index: 2147483647; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             `;
             document.documentElement.appendChild(toast);
@@ -156,6 +161,7 @@
             const badge = document.createElement('div');
             badge.id = STATE.badgeId;
             
+            // Added -webkit-tap-highlight-color and improved transition
             badge.style.cssText = `
                 position: fixed; z-index: 2147483647;
                 display: flex; align-items: center; gap: 8px;
@@ -167,8 +173,10 @@
                 transform: translate(${STATE.pos.x}px, ${STATE.pos.y}px);
                 touch-action: none; user-select: none;
                 font-family: Roboto, sans-serif;
-                transition: transform 0.05s linear;
+                transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.1s linear;
                 cursor: pointer;
+                -webkit-tap-highlight-color: transparent;
+                outline: none;
             `;
 
             const icon = document.createElement('img');
@@ -189,20 +197,18 @@
             badge.appendChild(icon);
             badge.appendChild(text);
 
-            // --- UNIVERSAL POINTER EVENTS LOGIC ---
             const handleStart = (e) => {
                 fixAudioContext();
-                // Ignore right clicks on desktop
                 if (e.pointerType === 'mouse' && e.button !== 0) return;
                 if (e.cancelable) e.preventDefault();
 
                 STATE.isDragging = true;
-                // Pointer events unify coordinates nicely
                 const startX = e.clientX;
                 const startY = e.clientY;
                 const initialPos = { ...STATE.pos };
 
-                badge.style.transform = `translate(${initialPos.x}px, ${initialPos.y}px) scale(0.95)`;
+                // Press visual (Scale down)
+                badge.style.transform = `translate(${initialPos.x}px, ${initialPos.y}px) scale(0.92)`;
                 badge.style.background = 'rgba(40, 40, 40, 1)';
                 
                 let hasMoved = false;
@@ -216,7 +222,8 @@
                         hasMoved = true;
                         STATE.pos.x = initialPos.x + dx;
                         STATE.pos.y = initialPos.y + dy;
-                        badge.style.transform = `translate(${STATE.pos.x}px, ${STATE.pos.y}px) scale(1.0)`;
+                        // Keep the scale down while dragging
+                        badge.style.transform = `translate(${STATE.pos.x}px, ${STATE.pos.y}px) scale(0.92)`;
                     }
                 };
 
@@ -226,6 +233,7 @@
                     window.removeEventListener('pointercancel', handleEnd);
                     
                     STATE.isDragging = false;
+                    // Release visual (Spring back up to scale 1.0)
                     badge.style.transform = `translate(${STATE.pos.x}px, ${STATE.pos.y}px) scale(1.0)`;
                     badge.style.background = 'rgba(10, 10, 10, 0.95)';
 
@@ -235,6 +243,11 @@
                         const now = Date.now();
                         if (now - STATE.lastToggle > 300) {
                             STATE.lastToggle = now;
+                            
+                            // Play the click sound
+                            clickAudio.currentTime = 0; // Reset in case of rapid clicks
+                            clickAudio.play().catch(()=>{});
+
                             STATE.mode = (STATE.mode + 1) % 3;
                             Logic.applyMode();
                             const msgs = ['🎧 Audio Only', '🟡 Low Video', '🔴 HD Video'];
@@ -248,7 +261,6 @@
                 window.addEventListener('pointercancel', handleEnd, { passive: false });
             };
 
-            // Only need to listen to pointerdown now
             badge.addEventListener('pointerdown', handleStart);
 
             badge.iconRef = icon;
@@ -343,5 +355,5 @@
     if (document.documentElement) UI.init();
     else window.addEventListener('DOMContentLoaded', UI.init);
 
-    console.log('[YTMNT] v5.3 Pointer Events Loaded');
+    console.log('[YTMNT] v5.4 Audio & Animation Patch Loaded');
 })();
