@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         YTMNT (YouTube Music Ninja Tools)
 // @namespace    https://github.com/hanenashi/ytmnt
-// @version      5.3
-// @description  Cowabunga! Stream Cycler, Ad Skip, Search-Proof UI & Mobile Drag.
+// @version      5.3.1
+// @description  Cowabunga! Stream Cycler, Ad Skip, Search-Proof UI & Universal Pointer Drag.
 // @author       Hanenashi & Gemini
 // @homepage     https://github.com/hanenashi/ytmnt
 // @updateURL    https://raw.githubusercontent.com/hanenashi/ytmnt/main/ytmnt.user.js
@@ -189,16 +189,17 @@
             badge.appendChild(icon);
             badge.appendChild(text);
 
+            // --- UNIVERSAL POINTER EVENTS LOGIC ---
             const handleStart = (e) => {
-                if (e.type === 'mousedown' && e.button !== 0) return;
+                fixAudioContext();
+                // Ignore right clicks on desktop
+                if (e.pointerType === 'mouse' && e.button !== 0) return;
                 if (e.cancelable) e.preventDefault();
 
                 STATE.isDragging = true;
-                const isTouch = e.type === 'touchstart';
-                const clientX = isTouch ? e.touches[0].clientX : e.clientX;
-                const clientY = isTouch ? e.touches[0].clientY : e.clientY;
-                const startX = clientX;
-                const startY = clientY;
+                // Pointer events unify coordinates nicely
+                const startX = e.clientX;
+                const startY = e.clientY;
                 const initialPos = { ...STATE.pos };
 
                 badge.style.transform = `translate(${initialPos.x}px, ${initialPos.y}px) scale(0.95)`;
@@ -208,10 +209,8 @@
 
                 const handleMove = (moveEvent) => {
                     if (moveEvent.cancelable) moveEvent.preventDefault();
-                    const moveX = isTouch ? moveEvent.touches[0].clientX : moveEvent.clientX;
-                    const moveY = isTouch ? moveEvent.touches[0].clientY : moveEvent.clientY;
-                    const dx = moveX - startX;
-                    const dy = moveY - startY;
+                    const dx = moveEvent.clientX - startX;
+                    const dy = moveEvent.clientY - startY;
 
                     if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
                         hasMoved = true;
@@ -222,9 +221,9 @@
                 };
 
                 const handleEnd = () => {
-                    window.removeEventListener(isTouch ? 'touchmove' : 'mousemove', handleMove);
-                    window.removeEventListener(isTouch ? 'touchend' : 'mouseup', handleEnd);
-                    window.removeEventListener('touchcancel', handleEnd); // <--- THE BUG FIX
+                    window.removeEventListener('pointermove', handleMove);
+                    window.removeEventListener('pointerup', handleEnd);
+                    window.removeEventListener('pointercancel', handleEnd);
                     
                     STATE.isDragging = false;
                     badge.style.transform = `translate(${STATE.pos.x}px, ${STATE.pos.y}px) scale(1.0)`;
@@ -243,13 +242,14 @@
                         }
                     }
                 };
-                window.addEventListener(isTouch ? 'touchmove' : 'mousemove', handleMove, { passive: false });
-                window.addEventListener(isTouch ? 'touchend' : 'mouseup', handleEnd, { passive: false });
-                if (isTouch) window.addEventListener('touchcancel', handleEnd, { passive: false });
+                
+                window.addEventListener('pointermove', handleMove, { passive: false });
+                window.addEventListener('pointerup', handleEnd, { passive: false });
+                window.addEventListener('pointercancel', handleEnd, { passive: false });
             };
 
-            badge.addEventListener('mousedown', handleStart);
-            badge.addEventListener('touchstart', handleStart, { passive: false });
+            // Only need to listen to pointerdown now
+            badge.addEventListener('pointerdown', handleStart);
 
             badge.iconRef = icon;
             badge.textRef = text;
@@ -288,12 +288,11 @@
     // 5. LISTENERS & BOOTSTRAP
     // ==========================================
     const recordInteraction = () => { STATE.lastInteraction = Date.now(); };
-    ['touchstart', 'touchmove', 'mousedown', 'keydown', 'scroll'].forEach(evt => {
+    ['pointerdown', 'keydown', 'scroll'].forEach(evt => {
         window.addEventListener(evt, recordInteraction, { capture: true, passive: true });
     });
 
-    // Only wake AudioContext on explicit click/tap gestures, not scrolling
-    ['touchstart', 'mousedown', 'keydown'].forEach(evt => {
+    ['pointerdown', 'keydown'].forEach(evt => {
         window.addEventListener(evt, () => { if (!audioFixed) fixAudioContext(); }, { capture: true, passive: true });
     });
 
@@ -344,5 +343,5 @@
     if (document.documentElement) UI.init();
     else window.addEventListener('DOMContentLoaded', UI.init);
 
-    console.log('[YTMNT] v5.2 Mobile Freeze Patch Loaded');
+    console.log('[YTMNT] v5.3 Pointer Events Loaded');
 })();
