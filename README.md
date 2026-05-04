@@ -55,9 +55,68 @@ Using Kiwi Browser on Android? You don't need YouTube Premium. Once YTMNT is run
 
 ---
 
-### **🚀 Roadmap: v6.0 (The PeerJS Remote)**
-*Coming soon to a dojo near you...*
-* **WebRTC TV Remote:** A built-in Peer-to-Peer bridge using PeerJS.
-* **How it will work:** Open YouTube Music on your phone, long-press the badge to enter "Remote Mode," and it will silently connect directly to the YTMNT instance running on your Android TV. 
-* **The Goal:** Skip tracks, adjust volume, and change Stream Cycler modes on the TV instantly using your phone as a low-latency touch controller—zero backend servers required.
-* 
+### **🚀 Roadmap: v6.0 (PeerJS TV Remote)**
+The next big idea is a phone remote for a TV running YTMNT in Kiwi Browser. The chosen direction is **Option 1: a separate remote web page** for the phone, instead of requiring the phone to run YouTube Music or the userscript too.
+
+#### **Target Experience**
+1. Open YouTube Music on the Android TV / Google TV browser with YTMNT installed.
+2. Long-press the YTMNT badge on the TV to enter **Remote Mode**.
+3. The TV shows a short pairing code, and later possibly a QR code.
+4. Open a lightweight YTMNT remote page on the phone.
+5. Enter or scan the TV code.
+6. Use the phone to control the TV instantly:
+    * Play / pause
+    * Next / previous track
+    * Volume up / down, eventually a slider
+    * Switch YTMNT stream mode: Audio / Low / HD
+    * See basic connection and mode status
+
+#### **Architecture**
+* **TV side:** `ytmnt.user.js` becomes the host. It creates a PeerJS peer, shows the pairing code, accepts one trusted phone connection, receives commands, and translates them into YouTube Music actions.
+* **Phone side:** a new `remote.html` page acts as the controller. It loads PeerJS, connects to the TV peer ID, and sends small JSON commands over the data connection.
+* **Transport:** PeerJS data connections wrap WebRTC data channels, so control messages should be low-latency once connected.
+* **Signaling note:** WebRTC still needs signaling before the peer-to-peer connection exists. For v1, use PeerJS Cloud because it is the fastest path. Later, we can support a self-hosted PeerServer for people who want more control. The actual remote commands should flow peer-to-peer after connection.
+
+#### **MVP Scope**
+* Add Remote Mode to the badge long-press flow.
+* Generate a readable TV peer ID, ideally with a random short suffix.
+* Show a compact TV overlay with:
+    * Pairing code
+    * Connection state
+    * Exit Remote Mode action
+* Add `remote.html` with:
+    * Pairing code input
+    * Connection status
+    * Large TV-friendly remote buttons
+    * Mode selector for Audio / Low / HD
+* Define a tiny command protocol:
+    * `{ "type": "playPause" }`
+    * `{ "type": "next" }`
+    * `{ "type": "previous" }`
+    * `{ "type": "volume", "delta": 0.05 }`
+    * `{ "type": "setMode", "mode": 0 }`
+    * `{ "type": "ping" }`
+* Keep the first version single-controller only. If a second phone connects, reject it or replace the previous connection deliberately.
+
+#### **Security / Pairing**
+* Do not accept arbitrary remote commands just because someone guessed a peer ID.
+* Generate a per-session pairing token on the TV.
+* Require the phone to send the token before commands are accepted.
+* Remember trusted pairings only after the MVP works. Silent reconnect can come later.
+* Add a visible TV indicator while a phone is connected, so the user always knows remote control is active.
+
+#### **Implementation Order**
+1. Extract the current player actions into small reusable helpers: play/pause, next, previous, volume, set mode.
+2. Build the TV Remote Mode state machine: off, pairing, connected, error.
+3. Load PeerJS on demand only when Remote Mode starts.
+4. Build the PeerJS host and command receiver in `ytmnt.user.js`.
+5. Add `remote.html` as the phone controller.
+6. Test on desktop browser first with two tabs.
+7. Test on Kiwi Android TV + phone.
+8. Add polish: QR pairing, reconnect, status sync, better error messages.
+
+#### **Open Questions**
+* Where should `remote.html` live: GitHub Pages, raw GitHub, or embedded as a generated data URL from the TV?
+* Should the TV peer ID be completely random, or human-readable like `ytmnt-4821`?
+* Should volume control use the YouTube player API, the media element volume, or UI button clicks as fallback?
+* Should long-press always play the easter egg, or should Remote Mode become the primary long-press action?
