@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         YTMNT (YouTube Music Ninja Tools)
 // @namespace    https://github.com/hanenashi/ytmnt
-// @version      5.8
-// @description  Cowabunga! Stream Cycler, Ad Skip, Mobile Drag, Audio Clicks & True Screen Bounds.
+// @version      5.9
+// @description  Cowabunga! Stream Cycler, Ad Skip, Mobile Drag, Audio Clicks & User Pause Respect.
 // @author       Hanenashi & Gemini
 // @homepage     https://github.com/hanenashi/ytmnt
 // @updateURL    https://raw.githubusercontent.com/hanenashi/ytmnt/main/ytmnt.user.js
@@ -30,6 +30,8 @@
     const STATE = {
         mode: 0, // 0=Audio, 1=Low, 2=HD
         lastInteraction: Date.now(),
+        userPaused: false,
+        pauseInteractionAt: 0,
         lastToggle: 0,
         isDragging: false,
         badgeId: 'ytmnt-badge-v5',
@@ -57,7 +59,7 @@
                         background: #000 !important;
                     }
                 `;
-                document.head.appendChild(style);
+                (document.head || document.documentElement).appendChild(style);
             }
 
             switch (STATE.mode) {
@@ -88,9 +90,28 @@
             } catch (e) {}
         },
 
+        isRecentUserAction: () => (Date.now() - STATE.lastInteraction) < 5000,
+
         handlePause: function(originalFn, args) {
-            const isManual = (Date.now() - STATE.lastInteraction) < 2000;
-            if (isManual) return originalFn.apply(this, args);
+            if (Logic.isRecentUserAction() || STATE.userPaused) {
+                STATE.userPaused = true;
+                STATE.pauseInteractionAt = STATE.lastInteraction;
+                return originalFn.apply(this, args);
+            }
+        },
+
+        handlePlay: function(originalFn, args) {
+            if (this === clickAudio || this === cowabungaAudio) {
+                return originalFn.apply(this, args);
+            }
+
+            if (STATE.userPaused) {
+                if (STATE.lastInteraction <= STATE.pauseInteractionAt) {
+                    return Promise.resolve();
+                }
+                STATE.userPaused = false;
+            }
+            return originalFn.apply(this, args);
         }
     };
 
@@ -345,12 +366,15 @@
     // ==========================================
     // 5. LISTENERS & BOOTSTRAP
     // ==========================================
-    const recordInteraction = () => { STATE.lastInteraction = Date.now(); };
-    ['pointerdown', 'keydown', 'scroll'].forEach(evt => {
+    const recordInteraction = (event) => {
+        if (event && event.isTrusted === false) return;
+        STATE.lastInteraction = Date.now();
+    };
+    ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'click', 'keydown', 'scroll'].forEach(evt => {
         window.addEventListener(evt, recordInteraction, { capture: true, passive: true });
     });
 
-    ['pointerdown', 'keydown'].forEach(evt => {
+    ['pointerdown', 'touchstart', 'keydown'].forEach(evt => {
         window.addEventListener(evt, () => { if (!audioFixed) fixAudioContext(); }, { capture: true, passive: true });
     });
 
@@ -359,6 +383,12 @@
         navigator.mediaSession.setActionHandler = (action, handler) => {
             origSetAction(action, (...args) => {
                 recordInteraction();
+                if (action === 'pause') {
+                    STATE.userPaused = true;
+                    STATE.pauseInteractionAt = STATE.lastInteraction;
+                } else if (action === 'play') {
+                    STATE.userPaused = false;
+                }
                 if (handler) handler(...args);
             });
         };
@@ -367,6 +397,11 @@
     const origPause = HTMLMediaElement.prototype.pause;
     HTMLMediaElement.prototype.pause = function() {
         return Logic.handlePause.call(this, origPause, arguments);
+    };
+
+    const origPlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function() {
+        return Logic.handlePlay.call(this, origPlay, arguments);
     };
 
     setInterval(() => {
@@ -386,6 +421,8 @@
             UI.showToast('👋 Idle Skipped'); 
             
             setTimeout(() => {
+                if (STATE.userPaused) return;
+
                 const player = document.getElementById('movie_player');
                 if (player && typeof player.playVideo === 'function') {
                     player.playVideo();
@@ -421,5 +458,5 @@
     if (document.documentElement) UI.init();
     else window.addEventListener('DOMContentLoaded', UI.init);
 
-    console.log('[YTMNT] v5.8 True Screen Bounds Loaded');
+    console.log('[YTMNT] v5.9 User Pause Respect Loaded');
 })();

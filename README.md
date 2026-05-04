@@ -5,7 +5,7 @@
 
 <div align="center">
 
-### [⬇️ **CLICK TO INSTALL SCRIPT (v5.8)**](https://raw.githubusercontent.com/hanenashi/ytmnt/main/ytmnt.user.js)
+### [⬇️ **CLICK TO INSTALL SCRIPT (v5.9)**](https://raw.githubusercontent.com/hanenashi/ytmnt/main/ytmnt.user.js)
 *(Requires Violentmonkey / Tampermonkey)*
 
 </div>
