@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         YTMNT (YouTube Music Ninja Tools)
 // @namespace    https://github.com/hanenashi/ytmnt
-// @version      5.9
-// @description  Cowabunga! Stream Cycler, Ad Skip, Mobile Drag, Audio Clicks & User Pause Respect.
+// @version      5.10
+// @description  Cowabunga! Stream Cycler, Ad Skip, Mobile Drag, Audio Clicks & Reliable Pause Respect.
 // @author       Hanenashi & Gemini
 // @homepage     https://github.com/hanenashi/ytmnt
 // @updateURL    https://raw.githubusercontent.com/hanenashi/ytmnt/main/ytmnt.user.js
@@ -29,11 +29,16 @@
 
     const STATE = {
         mode: 0, // 0=Audio, 1=Low, 2=HD
-        lastInteraction: Date.now(),
+        lastInteraction: 0,
+        lastPlaybackControlAt: 0,
         userPaused: false,
         pauseInteractionAt: 0,
+        appBackgrounded: false,
+        resumeInBackground: false,
         lastToggle: 0,
         isDragging: false,
+        lastAdSkipButton: null,
+        lastIdleButton: null,
         badgeId: 'ytmnt-badge-v5',
         toastId: 'ytmnt-toast-v5',
         pos: JSON.parse(localStorage.getItem('ytmnt-pos-v5')) || { x: 20, y: 120 }
@@ -90,11 +95,16 @@
             } catch (e) {}
         },
 
-        isRecentUserAction: () => (Date.now() - STATE.lastInteraction) < 5000,
+        isRecentUserAction: () => STATE.lastInteraction > 0
+            && (Date.now() - STATE.lastInteraction) < 1500,
+
+        isRecentPlaybackControlAction: () => STATE.lastPlaybackControlAt > 0
+            && (Date.now() - STATE.lastPlaybackControlAt) < 1500,
 
         handlePause: function(originalFn, args) {
-            if (Logic.isRecentUserAction() || STATE.userPaused) {
+            if (Logic.isRecentPlaybackControlAction() || STATE.userPaused) {
                 STATE.userPaused = true;
+                STATE.resumeInBackground = false;
                 STATE.pauseInteractionAt = STATE.lastInteraction;
                 return originalFn.apply(this, args);
             }
@@ -106,7 +116,7 @@
             }
 
             if (STATE.userPaused) {
-                if (STATE.lastInteraction <= STATE.pauseInteractionAt) {
+                if (!Logic.isRecentUserAction()) {
                     return Promise.resolve();
                 }
                 STATE.userPaused = false;
@@ -370,8 +380,32 @@
         if (event && event.isTrusted === false) return;
         STATE.lastInteraction = Date.now();
     };
-    ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'click', 'keydown', 'scroll'].forEach(evt => {
+    const recordPlaybackControlInteraction = (event) => {
+        if (event.isTrusted === false) return;
+
+        if (event.type === 'keydown') {
+            if (['Space', 'KeyK', 'MediaPlayPause', 'MediaPlay', 'MediaPause'].includes(event.code)) {
+                STATE.lastPlaybackControlAt = Date.now();
+            }
+            return;
+        }
+
+        const path = typeof event.composedPath === 'function' ? event.composedPath() : [event.target];
+        const isPlaybackControl = path.some(node => {
+            if (!(node instanceof Element)) return false;
+            if (node.matches?.('.play-pause-button, #play-pause-button, [data-id="play-pause"]')) {
+                return true;
+            }
+            const label = `${node.getAttribute?.('aria-label') || ''} ${node.getAttribute?.('title') || ''}`;
+            return /(^|\s)(play|pause)(\s|$)/i.test(label);
+        });
+
+        if (isPlaybackControl) STATE.lastPlaybackControlAt = Date.now();
+    };
+
+    ['pointerdown', 'touchstart', 'click', 'keydown'].forEach(evt => {
         window.addEventListener(evt, recordInteraction, { capture: true, passive: true });
+        window.addEventListener(evt, recordPlaybackControlInteraction, { capture: true, passive: true });
     });
 
     ['pointerdown', 'touchstart', 'keydown'].forEach(evt => {
@@ -382,10 +416,18 @@
         const origSetAction = navigator.mediaSession.setActionHandler.bind(navigator.mediaSession);
         navigator.mediaSession.setActionHandler = (action, handler) => {
             origSetAction(action, (...args) => {
-                recordInteraction();
+                const isAndroidLifecycleAction = window.__YTMNT_ANDROID_HOST
+                    && STATE.appBackgrounded;
+                if (!isAndroidLifecycleAction) recordInteraction();
                 if (action === 'pause') {
-                    STATE.userPaused = true;
-                    STATE.pauseInteractionAt = STATE.lastInteraction;
+                    // Android WebView may dispatch a pause while the host Activity is
+                    // backgrounded. The native host owns that lifecycle transition;
+                    // only foreground MediaSession pauses are treated as user intent.
+                    if (!isAndroidLifecycleAction) {
+                        STATE.userPaused = true;
+                        STATE.resumeInBackground = false;
+                        STATE.pauseInteractionAt = STATE.lastInteraction;
+                    }
                 } else if (action === 'play') {
                     STATE.userPaused = false;
                 }
@@ -404,21 +446,92 @@
         return Logic.handlePlay.call(this, origPlay, arguments);
     };
 
+    const AndroidHost = {
+        getState: () => ({
+            userPaused: STATE.userPaused,
+            appBackgrounded: STATE.appBackgrounded,
+            resumeInBackground: STATE.resumeInBackground
+        }),
+
+        setAppBackgrounded: (backgrounded) => {
+            STATE.appBackgrounded = Boolean(backgrounded);
+            if (STATE.appBackgrounded) {
+                const video = document.querySelector('video');
+                const player = document.getElementById('movie_player');
+                const playerState = player && typeof player.getPlayerState === 'function'
+                    ? player.getPlayerState()
+                    : null;
+                STATE.resumeInBackground = !STATE.userPaused
+                    && Boolean(video)
+                    && !video.ended
+                    && (!video.paused || playerState === 1 || playerState === 3);
+            }
+            return AndroidHost.getState();
+        },
+
+        ensurePlaying: () => {
+            if (!STATE.appBackgrounded || !STATE.resumeInBackground || STATE.userPaused) {
+                return Promise.resolve('inactive');
+            }
+
+            const video = document.querySelector('video');
+            const player = document.getElementById('movie_player');
+            if (!video || video.ended) {
+                STATE.resumeInBackground = false;
+                return Promise.resolve('ended');
+            }
+            if (!video.paused) return Promise.resolve('playing');
+
+            if (player && typeof player.playVideo === 'function') player.playVideo();
+            return origPlay.call(video).then(() => 'resumed').catch(() => 'rejected');
+        },
+
+        pauseByUser: () => {
+            STATE.userPaused = true;
+            STATE.resumeInBackground = false;
+            const video = document.querySelector('video');
+            if (video) origPause.call(video);
+            return AndroidHost.getState();
+        },
+
+        playByUser: () => {
+            STATE.lastInteraction = Date.now();
+            STATE.userPaused = false;
+            const video = document.querySelector('video');
+            if (!video || video.ended) return Promise.resolve('ended');
+            if (STATE.appBackgrounded) STATE.resumeInBackground = true;
+            return origPlay.call(video).then(() => 'playing').catch(() => 'rejected');
+        }
+    };
+
+    Object.defineProperty(window, '__YTMNT', {
+        value: AndroidHost,
+        configurable: true
+    });
+
     setInterval(() => {
         if (STATE.mode === 0) Logic.forceQuality('tiny');
         if (STATE.mode === 1) Logic.forceQuality('large');
         if (STATE.mode === 2) Logic.forceQuality('highres');
 
-        const skip = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern');
-        if (skip) { 
-            skip.click(); 
-            UI.showToast('⏩ Ad Skipped'); 
+        const skip = document.querySelector(
+            '.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button'
+        );
+        const skipReady = skip && !skip.disabled && skip.offsetParent !== null;
+        if (skipReady && skip !== STATE.lastAdSkipButton) {
+            STATE.lastAdSkipButton = skip;
+            skip.click();
+            UI.showToast('⏩ Ad Skipped');
+        } else if (!skipReady) {
+            STATE.lastAdSkipButton = null;
         }
 
         const idle = document.querySelector('ytmusic-you-there-renderer button');
-        if (idle) { 
-            idle.click(); 
-            UI.showToast('👋 Idle Skipped'); 
+        const idleReady = idle && !idle.disabled && idle.offsetParent !== null;
+        if (idleReady && idle !== STATE.lastIdleButton) {
+            STATE.lastIdleButton = idle;
+            idle.click();
+            UI.showToast('👋 Idle Skipped');
             
             setTimeout(() => {
                 if (STATE.userPaused) return;
@@ -432,6 +545,8 @@
                     vid.play().catch(err => console.warn('[YTMNT] Background play rejected:', err));
                 }
             }, 100);
+        } else if (!idleReady) {
+            STATE.lastIdleButton = null;
         }
     }, 2000);
 
@@ -458,5 +573,5 @@
     if (document.documentElement) UI.init();
     else window.addEventListener('DOMContentLoaded', UI.init);
 
-    console.log('[YTMNT] v5.9 User Pause Respect Loaded');
+    console.log('[YTMNT] v5.10 Reliable Pause Respect Loaded');
 })();
