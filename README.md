@@ -5,7 +5,7 @@
 
 <div align="center">
 
-### [⬇️ **CLICK TO INSTALL SCRIPT (v5.9)**](https://raw.githubusercontent.com/hanenashi/ytmnt/main/ytmnt.user.js)
+### [⬇️ **CLICK TO INSTALL SCRIPT (v5.10)**](https://raw.githubusercontent.com/hanenashi/ytmnt/main/ytmnt.user.js)
 *(Requires Violentmonkey / Tampermonkey)*
 
 </div>
@@ -52,6 +52,18 @@ You can run this directly on your living room TV to create the ultimate ad-free 
 
 #### **Pixel / Mobile Background Play**
 Using Kiwi Browser on Android? You don't need YouTube Premium. Once YTMNT is running, you can turn your screen off. If Android puts the browser to sleep, the script's `AudioContext` loop will automatically shock it back awake.
+
+#### **Android Native/WebView App (Experimental)**
+The `android-webview` branch contains a personal sideload prototype. The current GeckoView build (`dev.hanenashi.ytmnt.gecko`) embeds YouTube Music, injects YTMNT at document start, supports Google-domain login navigation, and exposes native Android media controls plus a foreground playback notification. It has been verified to continue a public test track through Home and a controlled screen-off/Doze cycle on the Pixel test device.
+
+The older `dev.hanenashi.ytmnt` WebView build remains in the same branch as a fallback/reference. Gecko and WebView profiles are separate, so sign-in must be completed separately in the Gecko app. This is not a release APK yet; it is personal, debug/sideload software. See [`handoff.md`](handoff.md) for build commands, test results, caveats, and the next work items.
+
+Build the current ARM64 debug APK from the repository root with:
+
+```sh
+cd android
+ANDROID_HOME=/home/beechan/.local/share/android-sdk ./gradlew :gecko:assembleDebug :gecko:lintDebug
+```
 
 ---
 
