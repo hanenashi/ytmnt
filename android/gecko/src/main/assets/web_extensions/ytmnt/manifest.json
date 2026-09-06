@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "YTMNT Built-in",
+  "version": "5.10",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "ytmnt@hanenashi.dev"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://music.youtube.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ]
+}
+

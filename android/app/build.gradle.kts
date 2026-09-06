@@ -4,7 +4,7 @@ plugins {
 
 android {
     namespace = "dev.hanenashi.ytmnt"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "dev.hanenashi.ytmnt"
@@ -33,7 +33,9 @@ val syncYtmntScript by tasks.registering(Copy::class) {
     into(generatedYtmntAssets)
 }
 
-android.sourceSets.getByName("main").assets.srcDir(generatedYtmntAssets)
+android.sourceSets.getByName("main").assets.directories.add(
+    generatedYtmntAssets.get().asFile.absolutePath
+)
 
 tasks.named("preBuild").configure {
     dependsOn(syncYtmntScript)
