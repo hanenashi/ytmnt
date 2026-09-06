@@ -6,10 +6,13 @@ import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.graphics.Insets;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
+import android.view.WindowInsets;
 
 import org.mozilla.geckoview.AllowOrDeny;
 import org.mozilla.geckoview.GeckoPreferenceController;
@@ -32,6 +35,7 @@ public final class MainActivity extends Activity {
 
     private GeckoSession session;
     private GeckoView geckoView;
+    private View rootView;
     private MediaSession activeMediaSession;
     private boolean canGoBack;
 
@@ -41,7 +45,9 @@ public final class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        rootView = findViewById(R.id.root);
         geckoView = findViewById(R.id.gecko_view);
+        applySystemBarInsets();
         GeckoSessionSettings sessionSettings = new GeckoSessionSettings.Builder()
                 .suspendMediaWhenInactive(false)
                 .userAgentMode(GeckoSessionSettings.USER_AGENT_MODE_DESKTOP)
@@ -65,7 +71,20 @@ public final class MainActivity extends Activity {
                         error -> {
                             Log.w(TAG, "Could not override Gecko offline detection", error);
                             installExtensionAndLoad(geckoRuntime);
-                        });
+        });
+    }
+
+    private void applySystemBarInsets() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            rootView.setOnApplyWindowInsetsListener((view, windowInsets) -> {
+                Insets insets = windowInsets.getInsets(
+                        WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+                view.setPadding(insets.left, insets.top, insets.right, insets.bottom);
+                return windowInsets;
+            });
+        } else {
+            rootView.setFitsSystemWindows(true);
+        }
     }
 
     private void installExtensionAndLoad(GeckoRuntime geckoRuntime) {
