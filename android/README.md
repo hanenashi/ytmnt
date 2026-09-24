@@ -5,7 +5,8 @@ in a restricted Android WebView and injects the repository's `ytmnt.user.js` at
 document start.
 
 The build copies `../ytmnt.user.js` into generated app assets, so there is only
-one script to maintain.
+one script to maintain. The Android app and standalone userscript are maintained
+together on the repository's `main` branch.
 
 ## Build and install
 
