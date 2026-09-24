@@ -7,9 +7,9 @@
 
     <application
         android:allowBackup="true"
-        android:icon="@drawable/ic_launcher"
+        android:icon="@drawable/ytmnt_icon"
         android:label="YTMNT Gecko"
-        android:roundIcon="@drawable/ic_launcher"
+        android:roundIcon="@drawable/ytmnt_icon"
         android:supportsRtl="true"
         android:theme="@style/Theme.YTMNT"
         android:usesCleartextTraffic="false">
