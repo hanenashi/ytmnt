@@ -12,7 +12,10 @@ import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.view.MotionEvent;
 import android.view.WindowInsets;
+import android.os.SystemClock;
+import org.json.JSONObject;
 
 import org.mozilla.geckoview.AllowOrDeny;
 import org.mozilla.geckoview.GeckoPreferenceController;
@@ -30,6 +33,9 @@ public final class MainActivity extends Activity {
     private static final String EXTENSION_LOCATION =
             "resource://android/assets/web_extensions/ytmnt/";
     private static final String EXTENSION_ID = "ytmnt@hanenashi.dev";
+    private static final String UBLOCK_ID = "uBlock0@raymondhill.net";
+    private static final String UBLOCK_XPI =
+            "https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi";
 
     private static GeckoRuntime runtime;
 
@@ -57,6 +63,17 @@ public final class MainActivity extends Activity {
         session.setMediaSessionDelegate(createMediaSessionDelegate());
 
         GeckoRuntime geckoRuntime = getRuntime();
+        geckoRuntime.getWebExtensionController().setPromptDelegate(
+                new org.mozilla.geckoview.WebExtensionController.PromptDelegate() {
+                    @Override
+                    public GeckoResult<org.mozilla.geckoview.WebExtension.PermissionPromptResponse>
+                    onInstallPromptRequest(org.mozilla.geckoview.WebExtension extension,
+                            String[] permissions, String[] origins, String[] dataCollection) {
+                        return GeckoResult.fromValue(
+                                new org.mozilla.geckoview.WebExtension.PermissionPromptResponse(
+                                        true, true, true));
+                    }
+                });
         session.open(geckoRuntime);
         geckoView.setSession(session);
 
@@ -93,12 +110,59 @@ public final class MainActivity extends Activity {
                 .accept(
                         extension -> {
                             Log.i(TAG, "YTMNT extension ready: " + extension.id);
-                            session.loadUri(getStartUrl());
+                            runOnUiThread(() -> extension.setMessageDelegate(
+                                    new org.mozilla.geckoview.WebExtension.MessageDelegate() {
+                                        @Override
+                                        public GeckoResult<Object> onMessage(
+                                                String nativeApp,
+                                                Object message,
+                                                org.mozilla.geckoview.WebExtension.MessageSender sender) {
+                                            if (!(message instanceof JSONObject)) return null;
+                                            JSONObject json = (JSONObject) message;
+                                            Log.d(TAG, "Extension message: " + json);
+                                            if (!"ad-tap".equals(json.optString("type"))) return null;
+                                            dispatchAdTap(json.optDouble("x", Double.NaN),
+                                                    json.optDouble("y", Double.NaN),
+                                                    json.optDouble("dpr", 1.0));
+                                            return null;
+                                        }
+                                    }, "browser"));
+                            installUblockThenLoad(geckoRuntime);
                         },
                         error -> {
                             Log.e(TAG, "Could not install YTMNT extension", error);
-                            session.loadUri(getStartUrl());
+                            installUblockThenLoad(geckoRuntime);
                         });
+    }
+
+    private void installUblockThenLoad(GeckoRuntime geckoRuntime) {
+        geckoRuntime.getWebExtensionController().list().accept(
+                extensions -> {
+                    boolean installed = extensions.stream()
+                            .anyMatch(extension -> UBLOCK_ID.equals(extension.id));
+                    if (installed) {
+                        Log.i(TAG, "uBlock Origin already installed");
+                        session.loadUri(getStartUrl());
+                        return;
+                    }
+                    Log.i(TAG, "Installing uBlock Origin from AMO");
+                    runOnUiThread(() -> geckoRuntime.getWebExtensionController()
+                            .install(UBLOCK_XPI, org.mozilla.geckoview.WebExtensionController
+                                    .INSTALLATION_METHOD_ONBOARDING)
+                            .accept(
+                                    extension -> {
+                                        Log.i(TAG, "uBlock Origin installed: " + extension.id);
+                                        session.loadUri(getStartUrl());
+                                    },
+                                    error -> {
+                                        Log.w(TAG, "Could not install uBlock Origin; continuing", error);
+                                        session.loadUri(getStartUrl());
+                                    }));
+                },
+                error -> {
+                    Log.w(TAG, "Could not inspect extensions; continuing", error);
+                    session.loadUri(getStartUrl());
+                });
     }
 
     private GeckoRuntime getRuntime() {
@@ -191,6 +255,17 @@ public final class MainActivity extends Activity {
                 != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 208);
         }
+    }
+
+    private void dispatchAdTap(double cssX, double cssY, double dpr) {
+        if (!Double.isFinite(cssX) || !Double.isFinite(cssY) || !Double.isFinite(dpr)
+                || dpr <= 0 || dpr > 8) return;
+        float x = (float) (cssX * dpr);
+        float y = (float) (cssY * dpr);
+        long now = SystemClock.uptimeMillis();
+        geckoView.onTouchEvent(MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, x, y, 0));
+        geckoView.onTouchEvent(MotionEvent.obtain(now, now + 40, MotionEvent.ACTION_UP, x, y, 0));
+        Log.d(TAG, "Dispatched native ad tap at " + x + "," + y);
     }
 
     private String getStartUrl() {

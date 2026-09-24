@@ -101,7 +101,22 @@
         isRecentPlaybackControlAction: () => STATE.lastPlaybackControlAt > 0
             && (Date.now() - STATE.lastPlaybackControlAt) < 1500,
 
+        isVisibleAdSkipButton: () => {
+            const skip = document.querySelector(
+                '.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button'
+            );
+            return Boolean(skip)
+                && !skip.disabled
+                && skip.offsetParent !== null;
+        },
+
         handlePause: function(originalFn, args) {
+            // YouTube pauses the ad element while handing off from the ad to
+            // the requested track. Do not swallow that internal pause just
+            // because it was not preceded by a play/pause button tap.
+            if (Logic.isVisibleAdSkipButton()) {
+                return originalFn.apply(this, args);
+            }
             if (Logic.isRecentPlaybackControlAction() || STATE.userPaused) {
                 STATE.userPaused = true;
                 STATE.resumeInBackground = false;
@@ -521,7 +536,40 @@
         if (skipReady && skip !== STATE.lastAdSkipButton) {
             STATE.lastAdSkipButton = skip;
             skip.click();
-            UI.showToast('⏩ Ad Skipped');
+            UI.showToast('⏩ Ad skip requested');
+
+            // Gecko rejects synthetic DOM clicks for this control because the
+            // handler requires trusted input. Ask the Android host for one
+            // physical-style tap only after the DOM request has had a chance
+            // to work. The native bridge is Android-only and no-op elsewhere.
+            setTimeout(() => {
+                const stillVisible = skip.isConnected
+                    && !skip.disabled
+                    && skip.offsetParent !== null;
+                if (!stillVisible) return;
+                const rect = skip.getBoundingClientRect();
+                window.dispatchEvent(new CustomEvent('ytmnt-native-ad-tap', {
+                    detail: JSON.stringify({
+                        x: rect.left + rect.width / 2,
+                        y: rect.top + rect.height / 2,
+                        dpr: window.devicePixelRatio || 1
+                    })
+                }));
+            }, 250);
+
+            // A DOM click can be ignored by newer YouTube ad controls. Verify
+            // the actual control state and allow the next polling pass to
+            // retry instead of reporting a false success.
+            setTimeout(() => {
+                const stillVisible = skip.isConnected
+                    && !skip.disabled
+                    && skip.offsetParent !== null;
+                if (stillVisible && STATE.lastAdSkipButton === skip) {
+                    STATE.lastAdSkipButton = null;
+                } else if (!stillVisible) {
+                    UI.showToast('⏩ Ad skipped');
+                }
+            }, 350);
         } else if (!skipReady) {
             STATE.lastAdSkipButton = null;
         }
